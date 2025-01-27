@@ -36,6 +36,8 @@ fn make_world(width: i16, height: i16) -> Vec<Vec<Vec<Person>>> {
 fn make_person(id: i32, hobby: String) -> Person {
     let easygoingness: i32 = rand::random();
     let personality: i32 = rand::random();
+    let mut hobbies: Vec<String> = Vec::new();
+    hobbies.push(hobby);
 
     return Person {
         easygoingness: easygoingness % 10,
