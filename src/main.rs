@@ -1,4 +1,4 @@
-use std::{io::stdout, vec};
+use std::{cell::RefCell, io::stdout, rc::Rc, vec};
 use rand::prelude::*;
 
 const HOBBIES: [&'static str; 8] = [
@@ -17,7 +17,7 @@ struct Person {
     personality: i32,
     id: i32,
     hobbies: Vec<String>,
-    friends: Vec<Box<Person>>,
+    friends: Vec<Rc<RefCell<Person>>>,
     coords: Point,
     partying: bool,
 }
@@ -26,30 +26,59 @@ struct Point {
     x: usize,
     y: usize,
 }
-type World<T> = Vec<Vec<T>>;
-type Location = Vec<Box<Person>>;
 
+struct World {
+    grid: Vec<Vec<Location>>,
+    people: Vec<Rc<RefCell<Person>>>,
+}
 
+type Location = Vec<Rc<RefCell<Person>>>;
 
-fn make_world(width: i16, height: i16, n_people: i16) -> World<Location> {
-    let mut world = Vec::new();
+fn make_world(width: usize, height: usize, n_people: u16) -> World {
+    // let mut world = Vec::new();
+    let mut world = World {
+        grid: Vec::new(),
+        people: Vec::new(),
+    };
 
     for _i in 0..width {
         let mut row = Vec::new();
 
         for _j in 0..height {
-            let mut location = Vec::new();
+            let location = Vec::new();
 
-            row.append(location);
+            row.push(location);
         }
-        world.append(&mut row);
+        world.grid.push(row);
     }
 
     for i in 0..n_people {
+        let mut person = make_person(i.into());
+        
+        person.hobbies.push(rand_hobby());
+        person.coords = rand_location(&world);
 
+        let rc = Rc::new(RefCell::new(person));
+
+        world.people.push(Rc::clone(&rc));
+        get_at_world_coords(&mut world, &rc.borrow().coords).unwrap().push(Rc::clone(&rc));
     }
 
     return world;
+}
+
+fn rand_location(world: &World) -> Point {
+
+    let x_coord = rand::thread_rng().gen_range(0..world.grid.len());
+    let y_coord = rand::thread_rng().gen_range(0..world.grid.get(x_coord).unwrap().len());
+    return Point {
+        x: x_coord,
+        y: y_coord,
+    }
+}
+
+fn rand_hobby() -> String {
+    return HOBBIES.choose(&mut rand::thread_rng()).unwrap().to_string();
 }
 
 fn is_compatible(person_a: &Person, person_b: &Person) -> bool {
@@ -59,12 +88,12 @@ fn is_compatible(person_a: &Person, person_b: &Person) -> bool {
         && (person_b.personality >= (person_a.personality - person_b.easygoingness));
 }
 
-fn in_bounds(world: &World<Location>, coords: &Point) -> bool {
-    return coords.x >= 0 && coords.x <= world.len()
-        && coords.y >= 0 && coords.y <= world.get(coords.x).unwrap().len()
+fn in_bounds(world: &World, coords: &Point) -> bool {
+    return coords.x >= 0 && coords.x <= world.grid.len()
+        && coords.y >= 0 && coords.y <= world.grid.get(coords.x).unwrap().len()
 }
 
-fn find_adjacent_points(world: &World<Location>, coords: Point, allow_diagonal: bool) -> Vec<Point> {
+fn find_adjacent_points(world: &World, coords: &Point, allow_diagonal: bool) -> Vec<Point> {
     let mut adjacent_points = vec![
         Point { x: coords.x - 1, y: coords.y },
         Point { x: coords.x + 1, y: coords.y },
@@ -87,11 +116,9 @@ fn find_adjacent_points(world: &World<Location>, coords: Point, allow_diagonal: 
     return adjacent_points;
 }
 
-fn make_person(id: i32, hobby: String) -> Person {
+fn make_person(id: i32) -> Person {
     let easygoingness: i32 = rand::random();
     let personality: i32 = rand::random();
-    let mut hobbies: Vec<String> = Vec::new();
-    hobbies.push(hobby);
 
     return Person {
         easygoingness: easygoingness % 10,
@@ -104,21 +131,32 @@ fn make_person(id: i32, hobby: String) -> Person {
     }
 }
 
-fn move_person(world: &World<Location>, destination: Point) -> () {
+fn move_person(world: &World, destination: Point) -> () {
     
 }
 
-fn find_adjecent_people(world: &World<Location>, )
+/* Returns the same value as FindAdjacents() except without any empty locations. */
+fn find_adjacent_populated(world: &mut World, coords: &Point, allow_diagonal: bool) -> Vec<Point> {
+    let mut adjacents = find_adjacent_points(world, coords, allow_diagonal);
 
-fn get_at_world_coords(world: &World<Location>, coords: Point) -> Result<&Location, String> {
-    if coords.y <= world.len() {
-        let row = &world[coords.y];
+    adjacents.retain(|p| get_at_world_coords(world, p).unwrap().len() > 0);
+
+    return adjacents;
+}
+
+fn get_at_world_coords<'a>(world: &'a mut World, coords: &Point) -> Result<&'a mut Location, String> {
+    if coords.y <= world.grid.len() {
+        let row = &mut world.grid[coords.y];
         if coords.x <= row.len() {
-            return Ok(&row[coords.x]);
+            return Ok(&mut row[coords.x]);
         }
     }
 
     return Err("Out of bounds".to_string());
+}
+
+fn iterate(world: &mut World, n_iterations: u8) {
+
 }
 
 fn main() {
@@ -130,7 +168,9 @@ fn main() {
 
     // say(&message, width, &mut writer).unwrap();
 
-    let world = make_world(20, 20);
+    let world = make_world(20, 20, 10);
+
+
 
 
 }
