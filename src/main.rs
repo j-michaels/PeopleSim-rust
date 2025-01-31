@@ -131,20 +131,31 @@ fn make_person(id: i32) -> Person {
     }
 }
 
-fn move_person(world: &World, destination: Point) -> () {
-    
+fn move_person(world: &mut World, person: &mut Person, destination: &Point) -> () {
+    let destination_group = get_at_world_coords(world, destination).unwrap();
+
+    let origin_group = get_at_world_coords(world, &person.coords).unwrap();
+
+    if let Some(index) = origin_group.iter().position(|p| p.borrow().id == person.id) {
+        if let Some(person_ref_cell) = origin_group.get(index).cloned() {
+            person.coords.x = destination.x;
+            person.coords.y = destination.y;
+            destination_group.push(person_ref_cell);
+            origin_group.remove(index);
+        }
+    }
 }
 
 /* Returns the same value as FindAdjacents() except without any empty locations. */
-fn find_adjacent_populated(world: &mut World, coords: &Point, allow_diagonal: bool) -> Vec<Point> {
+fn find_adjacent_populated(world: &World, coords: &Point, allow_diagonal: bool) -> Vec<Point> {
     let mut adjacents = find_adjacent_points(world, coords, allow_diagonal);
 
-    adjacents.retain(|p| get_at_world_coords(world, p).unwrap().len() > 0);
+    adjacents.retain(|p| world.grid[p.x][p.y].len() > 0);
 
     return adjacents;
 }
 
-fn get_at_world_coords<'a>(world: &'a mut World, coords: &Point) -> Result<&'a mut Location, String> {
+fn get_at_world_coords<'a>(world: &'a mut World, coords: &Point) -> Result<&'a  mut Location, String> {
     if coords.y <= world.grid.len() {
         let row = &mut world.grid[coords.y];
         if coords.x <= row.len() {
@@ -156,7 +167,18 @@ fn get_at_world_coords<'a>(world: &'a mut World, coords: &Point) -> Result<&'a m
 }
 
 fn iterate(world: &mut World, n_iterations: u8) {
-
+    for person in &world.people {
+        let adjacent_people = find_adjacent_populated(world, &person.borrow().coords, false);
+        
+        for adjacent_point in adjacent_people {
+            let loc = &world.grid[adjacent_point.x][adjacent_point.y];
+            for other_person in loc {
+                if is_compatible(&person.borrow(), &other_person.borrow()) {
+                    person_add_friend(&person.borrow_mut(), &other_person.borrow_mut())
+                }
+            }
+        }
+    }
 }
 
 fn main() {
@@ -169,8 +191,6 @@ fn main() {
     // say(&message, width, &mut writer).unwrap();
 
     let world = make_world(20, 20, 10);
-
-
 
 
 }
