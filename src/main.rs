@@ -36,7 +36,6 @@ struct World {
 type Location = Vec<Rc<RefCell<Person>>>;
 
 fn make_world(width: usize, height: usize, n_people: u16) -> World {
-    // let mut world = Vec::new();
     let mut world = World {
         grid: Vec::new(),
         people: Vec::new(),
@@ -132,20 +131,7 @@ fn make_person(id: i32) -> Person {
     }
 }
 
-fn move_person(world: &mut World, person: &mut Person, dest: &Point) {
-    let origin = &person.coords;
-    let origin_rc = &world.grid[origin.x][origin.y];
-    let dest_rc = &world.grid[dest.x][dest.y];
-    
-    if let Some(index) = origin_rc.borrow().iter().position(|p| p.borrow().id == person.id) {
-        if let Some(person_ref_cell) = origin_rc.borrow().get(index).cloned() {
-            person.coords.x = dest.x;
-            person.coords.y = dest.y;
-            dest_rc.borrow_mut().push(person_ref_cell);
-            origin_rc.borrow_mut().remove(index);
-        }
-    }
-}
+
 
 /* Returns the same value as FindAdjacents() except without any empty locations. */
 fn find_adjacent_populated(world: &World, coords: &Point, allow_diagonal: bool) -> Vec<Point> {
@@ -155,49 +141,130 @@ fn find_adjacent_populated(world: &World, coords: &Point, allow_diagonal: bool) 
     return adjacents;
 }
 
-fn iterate(world: &mut World, n_iterations: u8) {
-    for person in &world.people {
-        let adjacent_people = find_adjacent_populated(world, &person.borrow().coords, false);
-        
-        for adjacent_point in adjacent_people {
-            let loc = &world.grid[adjacent_point.x][adjacent_point.y].borrow();
 
-            for other_person in loc.iter() {
-                if is_compatible(&person.borrow(), &other_person.borrow()) {
-                    if let Some(other_person_rc) = world.people.iter().find(|&rc| Rc::ptr_eq(rc, person)) {
-                        person.borrow_mut().friends.push(other_person_rc.clone());
-                    }
-                }
+
+impl Person {
+    fn new(id: i32) -> Self {
+        let easygoingness: i32 = rand::random();
+        let personality: i32 = rand::random();
+    
+        return Person {
+            easygoingness: easygoingness % 10,
+            personality: personality % 10,
+            id,
+            hobbies: Vec::new(),
+            friends: Vec::new(),
+            coords: Point { x: 0, y: 0 },
+            partying: false,
+        }
+    }
+
+    fn rand_hobby(&self) -> String {
+        return self.hobbies.choose(&mut rand::thread_rng()).unwrap().to_string();
+    }
+}
+
+impl World {
+    fn new(width: usize, height: usize, n_people: u16) -> Self {
+        let mut world = World {
+            grid: Vec::new(),
+            people: Vec::new(),
+        };
+    
+        for _i in 0..width {
+            let mut row = Vec::new();
+    
+            for _j in 0..height {
+                let location = Vec::new();
+    
+                row.push(Rc::new(RefCell::new(location)));
+            }
+            world.grid.push(row);
+        }
+    
+        for i in 0..n_people {
+            let mut person = make_person(i.into());
+            
+            person.hobbies.push(rand_hobby());
+            person.coords = rand_location(&world);
+            let coords = person.coords;
+            let rc = Rc::new(RefCell::new(person));
+    
+            world.people.push(Rc::clone(&rc));
+            world.grid[coords.x][coords.y].borrow_mut().push(Rc::clone(&rc));
+        }
+    
+        return world;
+    }
+
+    fn move_person(&self, person: &mut Person, dest: &Point) {
+        let origin = &person.coords;
+        let origin_rc = &self.grid[origin.x][origin.y];
+        let dest_rc = &self.grid[dest.x][dest.y];
+        
+        if let Some(index) = origin_rc.borrow().iter().position(|p| p.borrow().id == person.id) {
+            if let Some(person_ref_cell) = origin_rc.borrow().get(index).cloned() {
+                person.coords.x = dest.x;
+                person.coords.y = dest.y;
+                dest_rc.borrow_mut().push(person_ref_cell);
+                origin_rc.borrow_mut().remove(index);
             }
         }
     }
 
-    let people_len = world.people.len();
-    for i in 0..people_len {
-        // let adjacents = find_adjacent_points(world, &world.people[i].borrow().coords, false);
+    fn iterate(&mut self, n_iterations: u8) {
+        for person in &self.people {
+            let adjacent_people = find_adjacent_populated(self, &person.borrow().coords, false);
+            
+            for adjacent_point in adjacent_people {
+                let loc = &self.grid[adjacent_point.x][adjacent_point.y].borrow();
+    
+                for other_person in loc.iter() {
+                    if is_compatible(&person.borrow(), &other_person.borrow()) {
+                        if let Some(other_person_rc) = self.people.iter().find(|&rc| Rc::ptr_eq(rc, person)) {
+                            person.borrow_mut().friends.push(other_person_rc.clone());
+                        }
+                    }
+                }
+            }
+        }
+    
+        let people = self.people.clone();
+        for person in people {
+            let destination = Point {
+                x: 0, y: 0
+            };
+            self.move_person(&mut person.borrow_mut(), &destination);
+        }
+    }
 
-        // let destination = *adjacents.choose(&mut rand::thread_rng()).unwrap();
-        let destination = Point {
-            x: 0, y: 0
-        };
-        let person_rc = world.people[i].clone();
-        move_person(world, &mut person_rc.borrow_mut(), &destination);
+    fn party(&self) {
+        // let people = self.people.clone();
+        let party_throwers = self.rand_people(5);
+
+        for party_thrower in party_throwers {
+            party_thrower.borrow_mut().partying = true;
+
+        }
+    }
+
+    fn rand_person(&self) -> Rc<RefCell<Person>> {
+        return Rc::clone(self.people.choose(&mut rand::thread_rng()).unwrap());
+    }
+
+    fn rand_people(&self, n_people: u16) -> Vec<Rc<RefCell<Person>>> {
+        let mut people: Vec<Rc<RefCell<Person>>> = Vec::new();
+        for _i in 0..n_people {
+            people.push(self.rand_person());
+        }
+        return people;
     }
 }
 
 fn main() {
     let stdout = stdout();
-    // let message = String::from("Hello fellow Rustaceans!");
-    // let width = message.chars().count();
 
-    // let mut writer = BufWriter::new(stdout.lock());
+    let mut world = World::new(20, 20, 10);
 
-    // say(&message, width, &mut writer).unwrap();
-
-    let mut world = make_world(20, 20, 10);
-
-    iterate(&mut world, 8);
-
+    world.iterate(8);
 }
-
-
